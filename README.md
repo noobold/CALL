@@ -7,3 +7,4 @@ Le deuxieme notebook Affichage_benne.ipynb est un notebook qui affiche une carte
 Il parle des bennes de collecte de verre géré par la CALL.
 
 D'autre notebooks arriveront.
+Les logiciel utili'se sont Anaconda distribution pour les notebooks et power BI
