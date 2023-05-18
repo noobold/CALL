@@ -12,6 +12,8 @@ from sklearn.cluster import KMeans
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn import svm
+from sklearn.ensemble import RandomForestClassifier
 
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.metrics import confusion_matrix
@@ -34,19 +36,13 @@ def separation_data_train_test_target(data,colonne_test):
         data_test : data de test
         target_data_test : cible de test
     """
-    data_train,data_test = train_test_split(data)
-    target_data_train = data_train.pop(colonne_test)
-    target_data_test = data_test.pop(colonne_test)
+    X_train,X_test = train_test_split(data)
+    Y_train = X_train.pop(colonne_test)
+    Y_test = X_test.pop(colonne_test)
 
-    return data_train,target_data_train,data_test,target_data_test
+    return X_train,Y_train,X_test,Y_test
 
-def surapprentissage(target_train,predict_train,target_test,predict_test):
-    print("rapport sur données d'entrainement :\n\n")
-    print(classification_report(target_train,predict_train))
-    print("\n\nrapport sur données de test:\n\n")
-    print(classification_report(target_test,predict_test))
-
-def rapport_confusion(predict_test,target_test):
+def rapport_confusion(predict_test,Y_test):
     """Affiche 2 matrices de confusion et un rapport de sklearn
     Arg:
         target_test : data a tester
@@ -56,7 +52,7 @@ def rapport_confusion(predict_test,target_test):
     """
     fig,ax=plt.subplots()
     
-    ConfusionMatrixDisplay.from_predictions(predict_test,target_test,ax=ax)
+    ConfusionMatrixDisplay.from_predictions(predict_test,Y_test,ax=ax)
     ax.set_ylabel('Valeurs exactes')
     ax.set_xlabel('Valeurs prédites')
     ax.set_title('matrice de confusion')
@@ -64,15 +60,15 @@ def rapport_confusion(predict_test,target_test):
     plt.show()
     #affichage rapport de classification
 
-    print("rapport sur données totales")
-    print(classification_report(target_test,predict_test))
+    print("rapport sur données")
+    print(classification_report(Y_test,predict_test))
 
 
-def rapport_confusion_model(model,data_test,target_test):
+def rapport_confusion_model(model,X_test,Y_test):
     #fait le rapport avec les matrice de confusion et rapport sklearn
     fig,ax=plt.subplots()
  
-    ConfusionMatrixDisplay.from_estimator(model,data_test,target_test,ax=ax)
+    ConfusionMatrixDisplay.from_estimator(model,X_test,Y_test,ax=ax)
     ax.set_ylabel('Valeurs exactes')
     ax.set_xlabel('Valeurs prédites')
     ax.set_title('Matrice de confusion')
@@ -83,8 +79,8 @@ def rapport_confusion_model(model,data_test,target_test):
     #https://kobia.fr/classification-metrics-precision-recall/
 
     print("rapport de classification totales")
-    predict_test_logreg = model.predict(data_test)
-    print(classification_report(target_test,predict_test_logreg))
+    predict_test_logreg = model.predict(X_test)
+    print(classification_report(Y_test,predict_test_logreg))
 
 
 def inertie_interclassse (X ,nb_cluster_mini = 1 ,nb_cluster_max = 10):
@@ -170,30 +166,29 @@ def dentogramme(df,methode='ward',nb_branche=10,taille=(12,8),nom_colonne_cluste
     return ax
 
 
-def kmeans_bool(data,colonne_cible):
+def kmeans_bool(X_train,Y_train):
     """
     retourne un model de kmeans de sklearn avec 2 cluster 0 faux 1 vrais (un booléen quoi)
     arg:
-        data : dataframe des données
-        colonne_cible : colonne du dataframe avec les valeurs cibles 
+        X_train : donnée entrainement
+        Y_train : cible entrainement       
     return:
         model sklearns Kmeans
     """ 
-    # separation du dataset en train test et cible
-    data_train, target_train ,data_test ,target_test = separation_data_train_test_target(data,colonne_cible)
+    
     #creation du modele
     #on fait un Kmeans avec 2 clusters vrais faux
     model_KMeans = KMeans(n_clusters=2,n_init='auto')
 
     #entrainement
-    model_KMeans.fit(data_train)
+    model_KMeans.fit(X_train)
 
     #target_kmeans_test = np.asarray(target_logis_test.astype(int))
-    predict_test_KMeans = model_KMeans.predict(data_test)
+    predict_test_KMeans = model_KMeans.predict(X_train)
     predict_test_KMeans = predict_test_KMeans.astype(bool)
 
     #Si les clusters ne sont pas bien situé, je refait le Kmeans en changeant les centres initiaux
-    kmeans_confusion = confusion_matrix(predict_test_KMeans,target_test)
+    kmeans_confusion = confusion_matrix(predict_test_KMeans,Y_train)
     somme_defaut = kmeans_confusion[0,0]+kmeans_confusion[1,1]
     valeur_bonne = kmeans_confusion[0,1]+kmeans_confusion[1,0]
     center = np.empty(shape=(2,6))
@@ -207,43 +202,32 @@ def kmeans_bool(data,colonne_cible):
     model_KMeans = KMeans(n_clusters=2,init=center,n_init=1) 
 
     #entrainement
-    model_KMeans.fit(data_train)
+    model_KMeans.fit(X_train)   
     
-    #analyse du modele
-    predict_test_KMeans = model_KMeans.predict(data.drop(colonne_cible,axis=1))
-    predict_test_KMeans = predict_test_KMeans.astype(bool)
-
-    predict_test = model_KMeans.predict(data_test)
-    predict_test = predict_test.astype(bool)
-
-    predict_train = model_KMeans.predict(data_train)
-    predict_train = predict_train.astype(bool)
-
-    surapprentissage(target_test=target_test,target_train=target_train,predict_test=predict_test,predict_train=predict_train)
-
-    rapport_confusion(predict_test=predict_test_KMeans,target_test=data[colonne_cible])
+    print('donnée d entrainement')
+    print(classification_report(Y_train,model_KMeans.predict(X_train)))
     
     return model_KMeans
 
 
-def KNNtest(data,colonne_cible,kmin=1,kmax=10):
+def KNNtest(X_train,Y_train,X_test,Y_test,kmin=1,kmax=10):
     """renvoie un modele KNN
-    arg: data , dataframe a analyser
-        colonne_cible : nom de la colonnne cible
+    arg: 
+        X_train : donnée entrainement
+        Y_train : cible entrainement 
+        X_test : donnée test
+        Y_test : cible test   
     returns:
         courbe apprentissage : dataframe avec les scores train et test
         
-    """ 
-
-    # separation du dataset en train test et cible
-    data_train, target_train ,data_test ,target_test = separation_data_train_test_target(data,colonne_cible)
+    """     
 
     courbe_apprentissage = pd.DataFrame(columns=['score_train','score_test'])
     for a in range(kmin,kmax):
         modelvoisin=KNeighborsClassifier(n_neighbors=a)
-        modelvoisin.fit(data_train,target_train)
-        score_train = modelvoisin.score(data_train,target_train)
-        score_test = modelvoisin.score(data_test,target_test)
+        modelvoisin.fit(X_train,Y_train)
+        score_train = modelvoisin.score(X_train,Y_train)
+        score_test = modelvoisin.score(X_test,Y_test)
         liste_score=[score_train,score_test]
         courbe_apprentissage.loc[a]=liste_score
     
@@ -256,77 +240,95 @@ def KNNtest(data,colonne_cible,kmin=1,kmax=10):
     
     courbe_apprentissage['ecart']= (courbe_apprentissage['score_train'].abs()-courbe_apprentissage['score_test'].abs() )
     nb_voisin = courbe_apprentissage['ecart'].idxmin()
+    
     print("Le nombre de voisins choisi automatiquement est de :",nb_voisin)
 
     model_voisin=KNeighborsClassifier(n_neighbors=nb_voisin)
-    model_voisin.fit(data_train,target_train)
+    model_voisin.fit(X_train,Y_train)
 
-    predict_test_KNN = model_voisin.predict(data_test)
-    predict_test_KNN = predict_test_KNN.astype(bool)
+    print('donnée d entrainement')
+    print(classification_report(Y_train,model_voisin.predict(X_train)))
 
-    predict_train_KNN = model_voisin.predict(data_train)
-    predict_train_KNN = predict_train_KNN.astype(bool)
-
-    predict_tot = model_voisin.predict(data.drop([colonne_cible],axis=1))
-    predict_tot = predict_tot.astype(bool)
-
-    surapprentissage(target_test=target_test,target_train=target_train,predict_test=predict_test_KNN,predict_train=predict_train_KNN)   
-    #affichage matrice de confusion
-    rapport_confusion(predict_test=predict_tot,target_test=data[colonne_cible])
+    rapport_confusion(model_voisin.predict(X_test),Y_test)
 
     return model_voisin
 
 
-def regression_logistique(data,colonne_cible,max_iter=100):
+def regression_logistique(X_train,Y_train,max_iter=100):
     """
     renvoie un modele de regression logistique sklearn
     arg:
-        data : dataframe dsiponible en apprentissage
-        colonne_cible : nom de la colonne cible
+        X_train : donnée entrainement
+        Y_train : cible entrainement 
+        
     return:
         modele sklearn de regression logistique
     """
-    data_train, target_train ,data_test ,target_test = separation_data_train_test_target(data,colonne_cible)
-
-    #création du model (par defaut)
+    #création du model
     model_reg_logis = LogisticRegression(max_iter=max_iter)
 
     #entrainement
-    model_reg_logis.fit(data_train,target_train)
-    
-    predict_train = model_reg_logis.predict(data_train)
-    predict_test = model_reg_logis.predict(data_test)
-
-    surapprentissage(target_test=target_test,target_train=target_train,predict_test=predict_test,predict_train=predict_train)   
-
-    rapport_confusion_model(model=model_reg_logis,data_test=data.drop([colonne_cible],axis=1),target_test=data[colonne_cible])
+    model_reg_logis.fit(X_train,Y_train)   
+    print('donnée d entrainement')
+    print(classification_report(Y_train,model_reg_logis.predict(X_train)))
 
     return model_reg_logis
 
 
-def naive_bayes_gaussian(data,colonne_cible):
+def naive_bayes_gaussian(X_train,Y_train):
     """renvoie une objet sklearn de Naive_bayes
     Arg : 
-        data : data 
-        colonne_cible : cible pour le classement
+        X_train : donnée entrainement
+        Y_train : cible entrainement
+       
     return 
         gnb : objet sklearn de classification
     """
-    
-    #separation du dataset
-    data_train, target_train ,data_test ,target_test = separation_data_train_test_target(data,colonne_cible)
+        
     
     #creation de l'objet sklearn 
     gnb = GaussianNB()
-    gnb.fit(data_train,target_train)
+    gnb.fit(X_train,Y_train)
+
+    print('donnée d entrainement')
+    print(classification_report(Y_train,gnb.predict(X_train)))
+        
+    return gnb
+
+
+def autosvm(X_train,Y_train,kernel='rbf',poids=None):
+    """renvoie une objet sklearn de svm
+    Arg : 
+        X_train : donnée entrainement
+        Y_train : cible entrainement
+    return 
+        svm : objet sklearn de classification
+    """
+       
+    #creation de l'objet sklearn 
+    sv = svm.SVC(kernel=kernel,class_weight=poids)
+    sv.fit(X_train,Y_train)
+    #scoring
+    print('donnée d entrainement')
+    print(classification_report(Y_train,sv.predict(X_train)))
+
+    return sv
+
+def foret_aleatoire(X_train,Y_train,criterion='gini',max_depth=None,n_estimator=100):
+    """renvoie une objet sklearn randomForest
+    Arg : 
+        X_train : donnée entrainement
+        Y_train : cible entrainement
+    return 
+        fa : objet sklearn de classification
+    """
+     
+    #creation de l'objet sklearn 
+    fa = RandomForestClassifier(criterion=criterion,max_depth=max_depth,n_estimators=n_estimator)
+    fa.fit(X_train,Y_train)
     
     #scoring
-    
-    predict_train = gnb.predict(data_train)
-    predict_test = gnb.predict(data_test)
-    
-    surapprentissage(target_test=target_test,target_train=target_train,predict_test=predict_test,predict_train=predict_train)   
+    print('donnée d entrainement')
+    print(classification_report(Y_train,fa.predict(X_train)))
 
-    rapport_confusion_model(model=gnb,data_test=data.drop([colonne_cible],axis=1),target_test=data[colonne_cible])
-
-    return gnb
+    return fa
